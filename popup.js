@@ -14,7 +14,7 @@ $(function() {
 function dumpBookmarks(query) {
     var bookmarkTreeNodes = chrome.bookmarks.getTree(
         function(bookmarkTreeNodes) {
-            $('#bookmarks').append(dumpTreeNodes(bookmarkTreeNodes, query));
+            $('#bookmarks').empty().append(dumpTreeNodes(bookmarkTreeNodes, query));
         });
 }
 function dumpTreeNodes(bookmarkNodes, query) {
@@ -51,10 +51,16 @@ function dumpNode(bookmarkNode, query) {
             '<input id="title"></td></tr><tr><td>URL</td><td><input id="url">' +
             '</td></tr></table>') : $('<input>');
 
-        var share = $('<div id="shared"></div>');
+        //var share = $('<input id="shared" disabled>');
+
+        var shared = $('<textarea id="shared" rows="3" cols="35" style="font-size: xx-small">Selected bookmark tree</textarea>');
+
+//        var imported = $('<table><tr><td>Content</td><td>' +
+//            '<input id="importContent" style="font-size: xx-small"></td></tr></table>');
+
 
         var imported = $('<table><tr><td>Content</td><td>' +
-            '<input id="importContent"></td></tr></table>');
+            '<textarea id="importContent" rows="3" cols="35" style="font-size: xx-small"></textarea></td></tr></table>');
 
         // Show add and edit links when hover over.
         span.hover(function() {
@@ -107,18 +113,21 @@ function dumpNode(bookmarkNode, query) {
                         sharedFolder.folder = bookmarkNode.title;
                         sharedFolder.bookmarks = JSON.stringify(bookmarkSubTree);
 
-                        share.append(JSON.stringify(sharedFolder));
+                        shared.val(JSON.stringify(sharedFolder));
 
-                        $('#sharedialog').empty().append(share).dialog({autoOpen: false,
+                        shared.on("click", function () {
+                            console.log("+#shared>>click");
+
+
+                            shared.select();
+                        });
+
+                        $('#sharedialog').empty().append(shared).dialog({autoOpen: false,
                             closeOnEscape: true, title: 'Share Bookmarks', modal: true,
                             buttons: {
-                                'Share' : function() {
-
+                                'Close' : function() {
                                     $(this).dialog('destroy');
                                     //window.dumpBookmarks();
-                                },
-                                'Cancel': function() {
-                                    $(this).dialog('destroy');
                                 }
                             }}).dialog('open');
                     });
@@ -148,28 +157,61 @@ function dumpNode(bookmarkNode, query) {
                         show: 'slide', buttons: {
                             'Import': function() {
                                 var importedObject = jQuery.parseJSON($('#importContent').val());
-                                var folderName = importedObject.folder;
+                                //var folderName = importedObject.folder;
                                 var importedContent = jQuery.parseJSON(importedObject.bookmarks);
 
                                 console.log(importedContent);
 
 
-                                    chrome.bookmarks.create({'parentId': bookmarkNode.id,
-                                        'title': folderName},
+                                function importAll(obj, pId) {
+                                    console.log("+importAll>>");
+
+                                    if (Array.isArray(obj))
+                                    {
+                                        console.log("   isArray...: " + obj.length);
+
+                                        $.each(obj, function(key, val) { importAll(val, pId) });
+                                    }
+                                    else if(obj.hasOwnProperty("children")){
+                                        // do the rest
+                                        chrome.bookmarks.create({'parentId': pId,
+                                                'title': obj.title},
+                                            function(newFolder) {
+                                                console.log("   added folder: " + newFolder.title);
+                                                importAll(obj.children, newFolder.id);
+                                            });
+                                    }
+                                    else
+                                    {
+                                        chrome.bookmarks.create({parentId: pId, title: obj.title, url: obj.url});
+                                        console.log("   >>>added bookmark: title[" + obj.title + "]");
+                                    }
+                                }
+
+
+                                importAll(importedContent, bookmarkNode.id);
+
+
+
+                                /*
+                                chrome.bookmarks.create({'parentId': bookmarkNode.id, 'title': folderName},
                                     function(newFolder) {
                                         console.log("added folder: " + newFolder.title);
                                         var folderId = newFolder.id.toString();
 
                                         console.log(folderId);
 
-
                                         $.each(importedContent, function(i, item) {
                                             chrome.bookmarks.create({parentId: folderId,
                                                 title: item.title, url: item.url});
                                         });
+                                    }
+                                );
 
-                                    });
+                                */
+
                                 $(this).dialog('destroy');
+                                dumpBookmarks();
                             },
                             'Cancel': function() {
                                 $(this).dialog('destroy');
