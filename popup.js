@@ -3,8 +3,6 @@
 // found in the LICENSE file.
 // Search the bookmarks when entering the search keyword.
 $(function() {
-//    $.noConflict(true);
-
     $('#search').change(function() {
         $('#bookmarks').empty();
         dumpBookmarks($('#search').val());
@@ -42,7 +40,7 @@ function dumpNode(bookmarkNode, query) {
         anchor.click(function() {
             chrome.tabs.create({url: bookmarkNode.url});
         });
-        var span = $('<span>');
+        var span = bookmarkNode.children ? $('<span style="font-weight: bold;">') : $('<span >');
         var options = bookmarkNode.children ?
             $('<span>[<a href="#" id="addlink">Add</a>, <a href="#" id="importlink">Import</a>, <a href="#" id="sharelink">Share</a>]</span>') :
             $('<span>[<a id="editlink" href="#">Edit</a> <a id="deletelink" ' +
@@ -51,13 +49,7 @@ function dumpNode(bookmarkNode, query) {
             '<input id="title"></td></tr><tr><td>URL</td><td><input id="url">' +
             '</td></tr></table>') : $('<input>');
 
-        //var share = $('<input id="shared" disabled>');
-
         var shared = $('<textarea id="shared" rows="3" cols="35" style="font-size: xx-small">Selected bookmark tree</textarea>');
-
-//        var imported = $('<table><tr><td>Content</td><td>' +
-//            '<input id="importContent" style="font-size: xx-small"></td></tr></table>');
-
 
         var imported = $('<table><tr><td>Content</td><td>' +
             '<textarea id="importContent" rows="3" cols="35" style="font-size: xx-small"></textarea></td></tr></table>');
@@ -188,27 +180,7 @@ function dumpNode(bookmarkNode, query) {
                                     }
                                 }
 
-
                                 importAll(importedContent, bookmarkNode.id);
-
-
-
-                                /*
-                                chrome.bookmarks.create({'parentId': bookmarkNode.id, 'title': folderName},
-                                    function(newFolder) {
-                                        console.log("added folder: " + newFolder.title);
-                                        var folderId = newFolder.id.toString();
-
-                                        console.log(folderId);
-
-                                        $.each(importedContent, function(i, item) {
-                                            chrome.bookmarks.create({parentId: folderId,
-                                                title: item.title, url: item.url});
-                                        });
-                                    }
-                                );
-
-                                */
 
                                 $(this).dialog('destroy');
                                 dumpBookmarks();
