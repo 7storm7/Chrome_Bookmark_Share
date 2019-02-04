@@ -1,6 +1,6 @@
 {
   "name": "BM Share",
-  "version": "1.1",
+  "version": "1.0",
   "description": "Share your bookmarks and bookmark folders!",
   "permissions": [
     "bookmarks"

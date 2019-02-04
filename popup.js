@@ -3,8 +3,7 @@
 // found in the LICENSE file.
 // Search the bookmarks when entering the search keyword.
 $(function() {
-    $('#search').change(function() {
-        $('#bookmarks').empty();
+    $('#search').on('input',function(e){
         dumpBookmarks($('#search').val());
     });
 });
@@ -30,29 +29,36 @@ function dumpNode(bookmarkNode, query) {
                 return $('<span></span>');
             }
         }
+
         var anchor = $('<a>');
         anchor.attr('href', bookmarkNode.url);
         anchor.text(bookmarkNode.title);
+        console.log(">>>bookmark.title: " + bookmarkNode.title);
+        console.log(">>>bookmark.url: " + bookmarkNode.url);
         /*
          * When clicking on a bookmark in the extension, a new tab is fired with
          * the bookmark url.
          */
         anchor.click(function() {
+            if (typeof bookmarkNode.url === "undefined") {
+                return;
+            }
+
             chrome.tabs.create({url: bookmarkNode.url});
         });
         var span = bookmarkNode.children ? $('<span style="font-weight: bold;">') : $('<span >');
         var options = bookmarkNode.children ?
-            $('<span>[<a href="#" id="addlink">Add</a>, <a href="#" id="importlink">Import</a>, <a href="#" id="sharelink">Share</a>]</span>') :
-            $('<span>[<a id="editlink" href="#">Edit</a> <a id="deletelink" ' +
-                'href="#">Delete</a>]</span>');
+            $('<span>[<a href="#" id="addlink">Add</a>, <a href="#" id="importlink">Import</a>, ' +
+                '<a href="#" id="sharelink">Share</a>, <a id="deletelink" href="#">Delete</a>]</span>') :
+            $('<span>[<a id="editlink" href="#">Edit</a>, <a id="deletelink" href="#">Delete</a>]</span>');
         var edit = bookmarkNode.children ? $('<table><tr><td>Name</td><td>' +
             '<input id="title"></td></tr><tr><td>URL</td><td><input id="url">' +
             '</td></tr></table>') : $('<input>');
 
-        var shared = $('<textarea id="shared" rows="3" cols="35" style="font-size: xx-small">Selected bookmark tree</textarea>');
+        var shared = $('<textarea id="sharedContent" rows="3" cols="50" style="font-size: xx-small">Selected bookmark tree</textarea>');
 
-        var imported = $('<table><tr><td>Content</td><td>' +
-            '<textarea id="importContent" rows="3" cols="35" style="font-size: xx-small"></textarea></td></tr></table>');
+        var imported = $('<table><tr><td>Content</td></tr><tr><td>' +
+            '<textarea id="importContent" rows="3" cols="50" style="font-size: xx-small"></textarea></td></tr></table>');
 
         // Show add and edit links when hover over.
         span.hover(function() {
@@ -70,12 +76,24 @@ function dumpNode(bookmarkNode, query) {
                         },
                         buttons: {
                             'Yes, Delete It!': function() {
-                                chrome.bookmarks.remove(String(bookmarkNode.id));
+                                if (bookmarkNode.children)
+                                {
+                                    chrome.bookmarks.removeTree(String(bookmarkNode.id),
+                                        function() {
+                                            console.log("import>>Removed folder : " + bookmarkNode.title);
+                                        });
+                                }
+                                else
+                                {
+                                    chrome.bookmarks.remove(String(bookmarkNode.id));
+                                }
                                 span.parent().remove();
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             },
                             Cancel: function() {
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             }
                         }
                     }).dialog('open');
@@ -89,10 +107,12 @@ function dumpNode(bookmarkNode, query) {
                                     title: $('#title').val(), url: $('#url').val()});
                                 $('#bookmarks').empty();
                                 $(this).dialog('destroy');
+                                $(this).empty();
                                 window.dumpBookmarks();
                             },
                             'Cancel': function() {
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             }
                         }}).dialog('open');
                 });
@@ -110,15 +130,30 @@ function dumpNode(bookmarkNode, query) {
                         shared.on("click", function () {
                             console.log("+#shared>>click");
 
-
                             shared.select();
+                            /* Copy the text inside the text field */
+                            document.execCommand("Copy");
+
+                            /* Notify the success of copying to clipboard. */
+                            $.notify("Subtree was copied to clipboard.", {autoHideDelay:2000,   className:'success'});
+
                         });
 
                         $('#sharedialog').empty().append(shared).dialog({autoOpen: false,
                             closeOnEscape: true, title: 'Share Bookmarks', modal: true,
+                            show: 'slide',
                             buttons: {
-                                'Close' : function() {
+                                'Copy' : function() {
+                                    /* Select the text field */
+                                    shared.select();
+                                    /* Copy the text inside the text field */
+                                    document.execCommand("Copy");
+
+                                    /* Notify the success of copying to clipboard. */
+                                    $.notify("Subtree was copied to clipboard.", {autoHideDelay:2000,   className:'success'});
+
                                     $(this).dialog('destroy');
+                                    $(this).empty();
                                     //window.dumpBookmarks();
                                 }
                             }}).dialog('open');
@@ -136,9 +171,11 @@ function dumpNode(bookmarkNode, query) {
                                 anchor.text(edit.val());
                                 options.show();
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             },
                             'Cancel': function() {
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             }
                         }}).dialog('open');
                 });
@@ -154,39 +191,47 @@ function dumpNode(bookmarkNode, query) {
 
                                 console.log(importedContent);
 
-
                                 function importAll(obj, pId) {
                                     console.log("+importAll>>");
 
                                     if (Array.isArray(obj))
                                     {
-                                        console.log("   isArray...: " + obj.length);
+                                        console.log("import>>isArray...: " + obj.length);
 
                                         $.each(obj, function(key, val) { importAll(val, pId) });
                                     }
-                                    else if(obj.hasOwnProperty("children")){
-                                        // do the rest
+                                    else if(obj.hasOwnProperty("children"))
+                                    {
+
                                         chrome.bookmarks.create({'parentId': pId,
                                                 'title': obj.title},
                                             function(newFolder) {
-                                                console.log("   added folder: " + newFolder.title);
+                                                console.log("import>>added folder: " + newFolder.title);
+                                                window.dumpBookmarks();
+
                                                 importAll(obj.children, newFolder.id);
                                             });
                                     }
                                     else
                                     {
-                                        chrome.bookmarks.create({parentId: pId, title: obj.title, url: obj.url});
-                                        console.log("   >>>added bookmark: title[" + obj.title + "]");
+                                        chrome.bookmarks.create({parentId: pId, title: obj.title, url: obj.url},
+                                            function(newBookmark) {
+                                                console.log("import>>added bookmark: " + newBookmark.title);
+                                                window.dumpBookmarks();
+                                            });
                                     }
                                 }
 
                                 importAll(importedContent, bookmarkNode.id);
 
+
                                 $(this).dialog('destroy');
-                                dumpBookmarks();
+                                $(this).empty();
+                                //window.dumpBookmarks();
                             },
                             'Cancel': function() {
                                 $(this).dialog('destroy');
+                                $(this).empty();
                             }
                         }}).dialog('open');
                 });
@@ -200,6 +245,7 @@ function dumpNode(bookmarkNode, query) {
     }
     var li = $(bookmarkNode.title ? '<li>' : '<div>').append(span);
     if (bookmarkNode.children && bookmarkNode.children.length > 0) {
+
         li.append(dumpTreeNodes(bookmarkNode.children, query));
     }
     return li;
